@@ -42,11 +42,18 @@ class StreamService {
         throw new Error('Redis not available - cannot retrieve source URL');
       }
 
-      const sourceKey = `video:source:${videoId}`;
-      const sourceData = await this.redis.get(sourceKey);
+      // Try quality-specific key first, then fallback to videoId-only key for backward compatibility
+      const sourceKey = `video:source:${videoId}:${quality}`;
+      const fallbackKey = `video:source:${videoId}`;
+
+      let sourceData = await this.redis.get(sourceKey);
+      if (!sourceData) {
+        // Fallback to quality-agnostic key for backward compatibility
+        sourceData = await this.redis.get(fallbackKey);
+      }
 
       if (!sourceData) {
-        throw new Error('Video source not found - URL may have expired');
+        throw new Error(`Video source not found for ${videoId} (${quality}) - URL may have expired`);
       }
 
       const source = JSON.parse(sourceData);
@@ -121,7 +128,7 @@ class StreamService {
    */
   async streamFromSource(source, videoId, quality, req, res) {
     try {
-      const { originalUrl, headers: sourceHeaders, platform } = source;
+      let { originalUrl, headers: sourceHeaders, platform } = source;
 
       // Prepare request headers
       const requestHeaders = {
@@ -129,12 +136,64 @@ class StreamService {
         'Range': req.headers.range || undefined
       };
 
-      // Stream from CDN
+      // For TikTok, ensure proper headers and handle proxy URLs
+      if (platform === 'tiktok') {
+        requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+        requestHeaders['Referer'] = 'https://www.tiktok.com/';
+
+        // TikTok proxy URLs need special handling - resolve to actual video URL first
+        if (originalUrl.includes('robotilab.xyz/download-api') || originalUrl.includes('download-api')) {
+          console.log(`[TikTok] Resolving proxy URL to actual video URL...`);
+          try {
+            // First, try to get the actual video URL from the proxy (as JSON)
+            try {
+              const jsonResponse = await axios.get(originalUrl, {
+                headers: { ...requestHeaders },
+                responseType: 'json',
+                maxRedirects: 5,
+                timeout: 15000,
+                validateStatus: (status) => status >= 200 && status < 400,
+              });
+
+              // If response is JSON with a video URL, extract it
+              if (jsonResponse.data && (jsonResponse.data.url || jsonResponse.data.videoUrl || jsonResponse.data.downloadUrl)) {
+                originalUrl = jsonResponse.data.url || jsonResponse.data.videoUrl || jsonResponse.data.downloadUrl;
+                console.log(`[TikTok] Extracted video URL from JSON: ${originalUrl.substring(0, 100)}...`);
+              }
+            } catch (jsonError) {
+              // Not JSON, try following redirects with HEAD request
+              try {
+                const headResponse = await axios.head(originalUrl, {
+                  headers: { ...requestHeaders },
+                  maxRedirects: 5,
+                  timeout: 10000,
+                  validateStatus: (status) => status >= 200 && status < 400,
+                });
+
+                // Get final URL after redirects
+                const finalUrl = headResponse.request?.res?.responseUrl || headResponse.config?.url;
+                if (finalUrl && finalUrl !== originalUrl && !finalUrl.includes('robotilab.xyz')) {
+                  originalUrl = finalUrl;
+                  console.log(`[TikTok] Resolved via redirect: ${originalUrl.substring(0, 100)}...`);
+                }
+              } catch (headError) {
+                console.log(`[TikTok] Could not resolve via HEAD, will try direct stream`);
+              }
+            }
+          } catch (resolveError) {
+            console.log(`[TikTok] Could not resolve proxy URL (${resolveError.message}), trying direct stream`);
+            // Continue with original URL - axios will try to stream it
+          }
+        }
+      }
+
+      // Stream from CDN (or resolved URL)
       const response = await axios.get(originalUrl, {
         responseType: 'stream',
         headers: requestHeaders,
         timeout: 300000, // 5 minutes
-        maxRedirects: 5
+        maxRedirects: 5,
+        validateStatus: (status) => status >= 200 && status < 400, // Accept redirects
       });
 
       // Set response headers
@@ -200,10 +259,20 @@ class StreamService {
    * @param {string} videoId - Video ID
    * @returns {Promise<Object|null>}
    */
-  async getVideoMetadata(videoId) {
+  async getVideoMetadata(videoId, quality = null) {
     if (!this.redis) return null;
 
     try {
+      // If quality is provided, try quality-specific key first
+      if (quality) {
+        const sourceKey = `video:source:${videoId}:${quality}`;
+        const sourceData = await this.redis.get(sourceKey);
+        if (sourceData) {
+          return JSON.parse(sourceData);
+        }
+      }
+
+      // Fallback to quality-agnostic key
       const sourceKey = `video:source:${videoId}`;
       const sourceData = await this.redis.get(sourceKey);
 

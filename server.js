@@ -43,12 +43,13 @@ async function initialize() {
     // Connect to Redis
     createRedisClient();
 
-    // Start server
-    app.listen(PORT, () => {
+    // Start server - bind to 0.0.0.0 to accept connections from any network interface
+    app.listen(PORT, '0.0.0.0', () => {
       console.log('='.repeat(50));
       console.log('✓ Video Proxy Service Started');
       console.log('='.repeat(50));
       console.log(`  Port: ${PORT}`);
+      console.log(`  Host: 0.0.0.0 (listening on all interfaces)`);
       console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`  Cache Path: ${process.env.STORAGE_PATH || '/tmp/video-cache'}`);
       console.log(`  Max Cache Size: ${process.env.MAX_CACHE_SIZE_GB || 10} GB`);

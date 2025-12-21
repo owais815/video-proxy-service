@@ -2,14 +2,16 @@
 
 Production-ready video streaming proxy with caching, range requests, and rate limiting.
 
+Live Demo: [https://owais-task-repo.vercel.app/](https://owais-task-repo.vercel.app/)
+
 ## Features
 
-- ✅ **Video Streaming** - Stream videos with session header preservation
-- ✅ **File Caching** - LRU cache with 10GB limit
-- ✅ **HTTP Range Requests** - Resumable downloads (HTTP 206)
-- ✅ **Rate Limiting** - 10 downloads per hour per IP
-- ✅ **Analytics Tracking** - Download statistics in MongoDB
-- ✅ **Compression** - Gzip for JSON responses
+- **Video Streaming** - Stream videos with session header preservation
+- **File Caching** - LRU cache with 10GB limit
+- **HTTP Range Requests** - Resumable downloads (HTTP 206)
+- **Rate Limiting** - 10 downloads per hour per IP
+- **Analytics Tracking** - Download statistics in MongoDB
+- **Compression** - Gzip for JSON responses
 
 ## Quick Start
 
@@ -31,17 +33,17 @@ STORAGE_PATH=/tmp/video-cache
 MAX_CACHE_SIZE_GB=10
 RATE_LIMIT_DOWNLOAD_MAX=10
 RATE_LIMIT_DOWNLOAD_WINDOW=3600
-ALLOWED_ORIGINS=http://localhost:3000,https://owais-task.netlify.app
+ALLOWED_ORIGINS=http://localhost:3000,https://owais-task-repo.vercel.app/
 ```
 
 ### 3. Start Server
 
 ```bash
 # Development
-npm run dev
+pnpm run dev
 
 # Production
-npm start
+pnpm start
 ```
 
 ## API Endpoints
@@ -55,6 +57,7 @@ GET /download/:videoId/:quality
 **Response**: Video stream (MP4)
 
 **Headers**:
+
 - `X-Cache-Status`: HIT or MISS
 - `X-RateLimit-Limit`: 10
 - `X-RateLimit-Remaining`: 7
@@ -68,6 +71,7 @@ GET /health
 ```
 
 **Response**:
+
 ```json
 {
   "status": "healthy",
@@ -88,10 +92,10 @@ GET /stats
 
 ## Deployment
 
-### Railway (Recommended)
+### Heroku (Recommended)
 
 1. Push to GitHub
-2. Import to Railway
+2. Import to Heroku
 3. Add environment variables
 4. Add persistent disk (10GB)
 5. Deploy
@@ -134,6 +138,7 @@ Track Analytics
 ## Monitoring
 
 Check logs for:
+
 - Cache hit rate
 - Download success/failure
 - Storage utilization

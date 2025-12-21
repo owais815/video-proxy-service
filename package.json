@@ -4,10 +4,15 @@
   "description": "Production-ready video proxy and caching service",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node api.js && node server.js",
+    "dev": "node api.js && nodemon server.js"
   },
-  "keywords": ["video", "proxy", "streaming", "cache"],
+  "keywords": [
+    "video",
+    "proxy",
+    "streaming",
+    "cache"
+  ],
   "author": "Owais",
   "license": "ISC",
   "dependencies": {
